@@ -2,6 +2,8 @@ import os
 import json
 import sqlite3
 import time
+import threading
+from collections import deque
 import requests
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
@@ -78,7 +80,26 @@ def needs_search(text):
 
 
 # ── Product Search ──
+# ── Rate limiter: max 10 req/min to stay under Gemini's 15 RPM ──
+_req_times = deque()
+_rate_lock = threading.Lock()
+
+def _rate_limit():
+    with _rate_lock:
+        now = time.time()
+        while _req_times and now - _req_times[0] > 60:
+            _req_times.popleft()
+        if len(_req_times) >= 10:
+            wait = 61 - (now - _req_times[0])
+            if wait > 0:
+                time.sleep(wait)
+            now = time.time()
+            while _req_times and now - _req_times[0] > 60:
+                _req_times.popleft()
+        _req_times.append(time.time())
+
 def gemini_post(payload, timeout=30, retries=2):
+    _rate_limit()
     for attempt in range(retries + 1):
         r = requests.post(
             GEMINI_URL,
@@ -88,7 +109,7 @@ def gemini_post(payload, timeout=30, retries=2):
         )
         if r.status_code == 429:
             if attempt < retries:
-                time.sleep(5)
+                time.sleep(20)
                 continue
         return r
     return r
