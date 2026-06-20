@@ -1,40 +1,38 @@
 import os
-import json
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
 
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-def ask_claude(messages):
+
+def ask_gemini(messages):
     if not API_KEY:
         return mock_response(messages[-1]["content"])
 
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=API_KEY)
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1024,
-            system="Sen CiciZeka adında yardımsever, samimi ve akıllı bir yapay zeka asistanısın. Türkçe konuşmayı tercih et ama kullanıcı hangi dilde yazarsa o dilde cevap ver.",
-            messages=messages,
+        import google.generativeai as genai
+        genai.configure(api_key=API_KEY)
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            system_instruction="Sen CiciZeka adında yardımsever, samimi ve akıllı bir yapay zeka asistanısın. Soruları analiz edip en doğru ve faydalı yanıtı ver. Türkçe konuşmayı tercih et ama kullanıcı hangi dilde yazarsa o dilde cevap ver."
         )
-        return response.content[0].text
+        history = []
+        for msg in messages[:-1]:
+            role = "user" if msg["role"] == "user" else "model"
+            history.append({"role": role, "parts": [msg["content"]]})
+
+        chat = model.start_chat(history=history)
+        response = chat.send_message(messages[-1]["content"])
+        return response.text
     except Exception as e:
         return f"Hata oluştu: {str(e)}"
 
 
 def mock_response(user_message):
-    responses = [
-        "Merhaba! Ben CiciZeka. Şu an demo modundayım çünkü API anahtarı ayarlanmamış. Gerçek Claude API'ye bağlanmak için ANTHROPIC_API_KEY ortam değişkenini ayarlayın.",
-        "Anlıyorum ne demek istediğinizi. Demo modunda olduğum için gerçek bir yapay zeka yanıtı veremiyorum ama sistem çalışıyor!",
-        "Bu çok ilginç bir soru! API anahtarınızı ekledikten sonra size detaylı bir yanıt verebileceğim.",
-        "Harika! Sistemin çalıştığını görüyorsunuz. Şimdi sadece ANTHROPIC_API_KEY eklemeniz yeterli.",
-    ]
-    import random
-    return random.choice(responses)
+    return "Merhaba! Ben CiciZeka. Şu an demo modundayım, API anahtarı ayarlanmamış."
 
 
 @app.route("/")
@@ -52,7 +50,7 @@ def chat():
     if not messages:
         return jsonify({"error": "Mesaj listesi boş"}), 400
 
-    reply = ask_claude(messages)
+    reply = ask_gemini(messages)
     return jsonify({"reply": reply})
 
 
