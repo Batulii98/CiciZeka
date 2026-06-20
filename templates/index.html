@@ -20,6 +20,15 @@
       <button class="new-chat-btn" onclick="newChat()">
         <span>+</span> Yeni Sohbet
       </button>
+      <div class="memory-panel">
+        <div class="memory-header">
+          <span>🧠 Hafıza</span>
+          <button class="clear-memory-btn" onclick="clearMemory()" title="Hafızayı temizle">Temizle</button>
+        </div>
+        <div class="memory-list" id="memoryList">
+          <p class="memory-empty">Henüz bir şey öğrenmedim.</p>
+        </div>
+      </div>
       <div class="sidebar-footer">
         <div class="status-badge" id="statusBadge">
           <span class="status-dot"></span>

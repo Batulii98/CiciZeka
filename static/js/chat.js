@@ -6,6 +6,35 @@ const welcomeScreen = document.getElementById("welcomeScreen");
 let conversationHistory = [];
 let isWaiting = false;
 
+// ── Session & Memory ──
+const SESSION_ID = localStorage.getItem("cz_session") || (() => {
+  const id = crypto.randomUUID();
+  localStorage.setItem("cz_session", id);
+  return id;
+})();
+
+async function loadMemories() {
+  try {
+    const res = await fetch(`/memories/${SESSION_ID}`);
+    const data = await res.json();
+    renderMemories(data.memories || []);
+  } catch {}
+}
+
+function renderMemories(memories) {
+  const list = document.getElementById("memoryList");
+  if (!memories.length) {
+    list.innerHTML = '<p class="memory-empty">Henüz bir şey öğrenmedim.</p>';
+    return;
+  }
+  list.innerHTML = memories.map(m => `<div class="memory-item">${m}</div>`).join("");
+}
+
+async function clearMemory() {
+  await fetch(`/memories/${SESSION_ID}`, { method: "DELETE" });
+  renderMemories([]);
+}
+
 // ── Image state ──
 let pendingImage = null;
 let pendingImageMime = "image/jpeg";
@@ -133,7 +162,7 @@ async function sendMessage() {
   const typingEl = addTyping();
 
   try {
-    const body = { messages: conversationHistory };
+    const body = { messages: conversationHistory, session_id: SESSION_ID };
     if (imageToSend) { body.image = imageToSend; body.image_mime = mimeToSend; }
 
     const res = await fetch("/chat", {
@@ -149,6 +178,7 @@ async function sendMessage() {
       addMessage("ai", data.reply, null, data.emotion);
       conversationHistory.push({ role: "assistant", content: data.reply });
       speak(data.reply);
+      if (data.learned && data.learned.length) loadMemories();
     } else {
       addMessage("ai", "Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.");
     }
@@ -278,3 +308,4 @@ function autoResize(el) {
 
 // ── Init ──
 checkStatus();
+loadMemories();

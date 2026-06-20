@@ -1,5 +1,8 @@
 import os
+import json
+import sqlite3
 import requests
+from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 
@@ -8,7 +11,56 @@ CORS(app)
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
-SYSTEM_PROMPT = """Sen CiciZeka adında akıllı ve güvenilir bir yapay zeka asistanısın.
+DB_PATH = Path(__file__).parent / "memory.db"
+
+
+# ── Database ──
+def init_db():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS memories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                fact TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(session_id, fact)
+            )
+        """)
+        conn.commit()
+
+init_db()
+
+def get_memories(session_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT fact FROM memories WHERE session_id = ? ORDER BY created_at DESC LIMIT 25",
+            (session_id,)
+        ).fetchall()
+    return [r[0] for r in rows]
+
+def save_memories(session_id, facts):
+    if not facts:
+        return
+    with sqlite3.connect(DB_PATH) as conn:
+        for fact in facts:
+            if fact and fact.strip():
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO memories (session_id, fact) VALUES (?, ?)",
+                        (session_id, fact.strip())
+                    )
+                except Exception:
+                    pass
+        conn.commit()
+
+def clear_memories(session_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM memories WHERE session_id = ?", (session_id,))
+        conn.commit()
+
+
+# ── Prompts ──
+BASE_PROMPT = """Sen CiciZeka adında akıllı ve güvenilir bir yapay zeka asistanısın.
 
 Kişilik:
 - Samimi ama profesyonelsin. Doğal bir ton kullanırsın; ne aşırı resmi ne de çocukça.
@@ -16,26 +68,39 @@ Kişilik:
 - Emoji kullanabilirsin ama ölçülü — her cümlede değil, anlam kattığında.
 - Eğlenceli sorularda hafif mizah yapabilirsin.
 - Kullanıcının ruh haline göre empati gösterir, tonunu ayarlarsın.
+- Kullanıcı hakkında öğrendiğin bilgileri doğal biçimde konuşmaya yansıt; "kayıtlarda var" diye söyleme.
 
 Görev:
 - Soruları dikkatle analiz et ve en doğru, faydalı yanıtı ver.
 - Görsel gönderildiğinde onu detaylı ve açık biçimde analiz et.
 - Türkçe konuşmayı tercih et; kullanıcı hangi dilde yazarsa o dilde yanıt ver.
 
-ÇIKTI FORMATI — Her yanıtı aşağıdaki JSON formatında döndür, başka hiçbir şey ekleme:
-{"reply": "<yanıt metni>", "emotion": "<tespit edilen duygu>"}
+ÇIKTI FORMATI — Yanıtını SADECE aşağıdaki JSON formatında döndür:
+{
+  "reply": "<yanıt metni>",
+  "emotion": "<mutlu|üzgün|kızgın|endişeli|yorgun|heyecanlı|nötr>",
+  "learn": ["<öğrenilecek kişisel bilgi>"]
+}
+"learn": Kullanıcı hakkında öğrenebileceğin bilgileri ekle (isim, meslek, hobiler, tercihler vb.). Yoksa []."""
 
-Duygu seçenekleri: mutlu, üzgün, kızgın, endişeli, yorgun, heyecanlı, nötr
-Duyguyu kullanıcının yazdığı metinden analiz et."""
+
+def build_prompt(memories):
+    if not memories:
+        return BASE_PROMPT
+    mem_text = "\n".join(f"  - {m}" for m in memories)
+    return BASE_PROMPT + f"\n\nBu kullanıcı hakkında önceki sohbetlerden öğrendiklerin:\n{mem_text}"
 
 
-def ask_gemini(messages, image_b64=None, image_mime="image/jpeg"):
+# ── Gemini ──
+def ask_gemini(messages, session_id, image_b64=None, image_mime="image/jpeg"):
     if not API_KEY:
-        return "Merhaba! Ben CiciZeka. Şu an demo modundayım, API anahtarı ayarlanmamış.", "nötr"
+        return "Demo modundayım, API anahtarı yok.", "nötr", []
+
+    memories = get_memories(session_id)
+    system_prompt = build_prompt(memories)
 
     try:
         contents = []
-
         for msg in messages[:-1]:
             contents.append({
                 "role": "user" if msg["role"] == "user" else "model",
@@ -46,11 +111,10 @@ def ask_gemini(messages, image_b64=None, image_mime="image/jpeg"):
         if image_b64:
             last_parts.append({"inline_data": {"mime_type": image_mime, "data": image_b64}})
         last_parts.append({"text": messages[-1]["content"] or "Bu görseli analiz et."})
-
         contents.append({"role": "user", "parts": last_parts})
 
         payload = {
-            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": contents
         }
 
@@ -61,20 +125,30 @@ def ask_gemini(messages, image_b64=None, image_mime="image/jpeg"):
             timeout=30
         )
         if response.status_code == 429:
-            return "Şu an çok yoğunum, birkaç saniye bekleyip tekrar dener misin? 🙏", "nötr"
+            return "Şu an çok yoğunum, birkaç saniye bekleyip tekrar dener misin? 🙏", "nötr", []
         response.raise_for_status()
+
         raw = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
 
-        import json as _json
         try:
-            parsed = _json.loads(raw)
-            return parsed.get("reply", raw), parsed.get("emotion", "nötr")
+            parsed = json.loads(raw)
+            reply = parsed.get("reply", raw)
+            emotion = parsed.get("emotion", "nötr")
+            learned = parsed.get("learn", [])
+            if learned:
+                save_memories(session_id, learned)
+            return reply, emotion, learned
         except Exception:
-            return raw, "nötr"
+            return raw, "nötr", []
     except Exception:
-        return "Bir sorun oluştu, lütfen tekrar dene.", "nötr"
+        return "Bir sorun oluştu, lütfen tekrar dene.", "nötr", []
 
 
+# ── Routes ──
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -89,11 +163,23 @@ def chat():
     if not messages:
         return jsonify({"error": "Mesaj listesi boş"}), 400
 
+    session_id = data.get("session_id", "default")
     image_b64 = data.get("image")
     image_mime = data.get("image_mime", "image/jpeg")
 
-    reply, emotion = ask_gemini(messages, image_b64, image_mime)
-    return jsonify({"reply": reply, "emotion": emotion})
+    reply, emotion, learned = ask_gemini(messages, session_id, image_b64, image_mime)
+    return jsonify({"reply": reply, "emotion": emotion, "learned": learned})
+
+
+@app.route("/memories/<session_id>", methods=["GET"])
+def memories_get(session_id):
+    return jsonify({"memories": get_memories(session_id)})
+
+
+@app.route("/memories/<session_id>", methods=["DELETE"])
+def memories_delete(session_id):
+    clear_memories(session_id)
+    return jsonify({"status": "cleared"})
 
 
 @app.route("/status")
