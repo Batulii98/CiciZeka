@@ -120,8 +120,8 @@ def search_product_links(product_name, max_results=5):
         return []
 
 def is_product_query(text):
-    keywords = ["link", "nereden", "satın al", "fiyat", "nerede bulunur",
-                "sipariş", "al", "bul", "nereden alabilir"]
+    keywords = ["link", "nereden", "satın al", "nerede bulunur",
+                "sipariş ver", "nereden alabilir", "fiyatı ne", "satıyor mu"]
     return any(k in text.lower() for k in keywords)
 
 
@@ -179,17 +179,17 @@ def ask_gemini(messages, session_id, image_b64=None, image_mime="image/jpeg"):
         if needs_search(last_text):
             search_context = web_search(last_text)
 
-        # Product link search when image is provided
+        # Product link search: only when image + user asks for link/buying info
         product_context = ""
-        if image_b64:
+        if image_b64 and is_product_query(last_text):
             product_name = identify_product(image_b64, image_mime)
             if product_name:
                 links = search_product_links(product_name)
                 if links:
-                    product_context = f"\n\n[Tespit edilen ürün: {product_name}]\n[Satın alma linkleri:\n"
-                    for lnk in links:
+                    product_context = f"\n\n[Ürün: {product_name} — satın alma bağlantıları:\n"
+                    for lnk in links[:4]:
                         product_context += f"- {lnk['title']}: {lnk['url']}\n"
-                    product_context += "]\nKullanıcı link istemese bile bu linkleri yanıtında paylaş."
+                    product_context += "]"
 
         last_parts = []
         if image_b64:
@@ -217,7 +217,22 @@ def ask_gemini(messages, session_id, image_b64=None, image_mime="image/jpeg"):
             return "Şu an çok yoğunum, birkaç saniye bekleyip tekrar dener misin? 🙏", "nötr", []
         response.raise_for_status()
 
-        raw = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        resp_json = response.json()
+
+        # Gemini may block the response (safety filter)
+        candidates = resp_json.get("candidates", [])
+        if not candidates:
+            return "Bu konuda sana yardımcı olamadım, farklı bir şekilde sormayı dene.", "nötr", []
+
+        finish_reason = candidates[0].get("finishReason", "")
+        if finish_reason in ("SAFETY", "RECITATION", "BLOCKED"):
+            return "Bu içerik için yanıt oluşturamadım. Farklı bir şekilde sorabilirsin.", "nötr", []
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        if not parts:
+            return "Bir sorun oluştu, lütfen tekrar dene.", "nötr", []
+
+        raw = parts[0]["text"].strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
