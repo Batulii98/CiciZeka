@@ -117,10 +117,12 @@ function loadChat(id) {
 
 function deleteChatItem(e, id) {
   e.stopPropagation();
-  const history = getChatHistory().filter(c => c.id !== id);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  if (id === currentChatId) startNewChat();
-  else renderChatHistory();
+  showConfirm("Bu sohbet silinecek. Emin misin?", () => {
+    const history = getChatHistory().filter(c => c.id !== id);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    if (id === currentChatId) startNewChat();
+    else renderChatHistory();
+  });
 }
 
 // ── Image state ──
@@ -218,9 +220,12 @@ async function checkStatus() {
     const data = await res.json();
     const dot = document.querySelector(".status-dot");
     const text = document.getElementById("statusText");
-    if (data.mode === "live") {
+    if (data.mode === "groq") {
       dot.className = "status-dot live";
-      text.textContent = "Claude API bağlı";
+      text.textContent = "Groq bağlı";
+    } else if (data.mode === "live") {
+      dot.className = "status-dot live";
+      text.textContent = "Gemini bağlı";
     } else {
       dot.className = "status-dot demo";
       text.textContent = "Demo modu";
@@ -269,6 +274,15 @@ async function sendMessage() {
       setAvatarState("talking");
       speak(data.reply);
       await typeWriter(span, data.reply);
+      if (data.generated_image) {
+        const bubble = msgEl.querySelector(".bubble");
+        const genImg = document.createElement("img");
+        genImg.src = `data:${data.generated_image_mime || "image/png"};base64,${data.generated_image}`;
+        genImg.alt = "Oluşturulan görsel";
+        genImg.className = "generated-img";
+        bubble.appendChild(genImg);
+        scrollToBottom();
+      }
       setAvatarState("idle");
       saveCurrentChat();
       if (data.learned && data.learned.length) loadMemories();

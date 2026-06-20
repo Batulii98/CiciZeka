@@ -9,3 +9,8 @@ build/
 .venv/
 venv/
 node_modules/
+run.bat
+memory.db
+.claude/
+build_exe.bat
+desktop_launcher.py

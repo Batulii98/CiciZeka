@@ -14,6 +14,11 @@ CORS(app)
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+IMAGE_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent"
+
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 DB_PATH = Path(__file__).parent / "memory.db"
 
 
@@ -152,6 +157,41 @@ def search_product_links(product_name, max_results=5):
     except Exception:
         return []
 
+def needs_image_generation(text):
+    keywords = ["çiz", "resim yap", "resim çiz", "görsel oluştur", "görsel yap",
+                "fotoğraf oluştur", "fotoğraf yap", "illüstrasyon yap", "bana çiz",
+                "resim oluştur", "draw me", "generate image", "create image", "paint me"]
+    tl = text.lower()
+    return any(k in tl for k in keywords)
+
+def generate_image(prompt):
+    if not API_KEY:
+        return None, None
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]}
+    }
+    try:
+        r = requests.post(
+            IMAGE_GEN_URL,
+            headers={"X-goog-api-key": API_KEY, "Content-Type": "application/json"},
+            json=payload,
+            timeout=45
+        )
+        if r.status_code != 200:
+            return None, None
+        data = r.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            return None, None
+        parts = candidates[0].get("content", {}).get("parts", [])
+        for part in parts:
+            if "inlineData" in part:
+                return part["inlineData"].get("data"), part["inlineData"].get("mimeType", "image/png")
+        return None, None
+    except Exception:
+        return None, None
+
 def is_product_query(text):
     keywords = ["link", "nereden", "satın al", "nerede bulunur",
                 "sipariş ver", "nereden alabilir", "fiyatı ne", "satıyor mu"]
@@ -189,6 +229,61 @@ def build_prompt(memories):
         return BASE_PROMPT
     mem_text = "\n".join(f"  - {m}" for m in memories)
     return BASE_PROMPT + f"\n\nBu kullanıcı hakkında önceki sohbetlerden öğrendiklerin:\n{mem_text}"
+
+
+# ── Groq ──
+def ask_groq(messages, session_id):
+    if not GROQ_API_KEY:
+        return None, "nötr", []
+
+    memories = get_memories(session_id)
+    system_prompt = build_prompt(memories)
+
+    groq_messages = [{"role": "system", "content": system_prompt}]
+    for msg in messages[:-1]:
+        role = "user" if msg["role"] == "user" else "assistant"
+        groq_messages.append({"role": role, "content": msg["content"]})
+
+    last_text = messages[-1].get("content", "")
+    augmented = last_text
+    if needs_search(last_text):
+        ctx = web_search(last_text)
+        if ctx:
+            augmented += f"\n\n[Güncel internet araması:\n{ctx}]"
+    groq_messages.append({"role": "user", "content": augmented})
+
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": groq_messages,
+        "temperature": 0.7,
+        "max_tokens": 1024
+    }
+    try:
+        r = requests.post(
+            GROQ_URL,
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=30
+        )
+        if r.status_code != 200:
+            return None, "nötr", []
+        raw = r.json()["choices"][0]["message"]["content"].strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        try:
+            parsed = json.loads(raw)
+            reply = parsed.get("reply", raw)
+            emotion = parsed.get("emotion", "nötr")
+            learned = parsed.get("learn", [])
+            if learned:
+                save_memories(session_id, learned)
+            return reply, emotion, learned
+        except Exception:
+            return raw, "nötr", []
+    except Exception:
+        return None, "nötr", []
 
 
 # ── Gemini ──
@@ -299,6 +394,24 @@ def chat():
     image_b64 = data.get("image")
     image_mime = data.get("image_mime", "image/jpeg")
 
+    last_msg = messages[-1].get("content", "")
+
+    if needs_image_generation(last_msg):
+        gen_img, gen_mime = generate_image(last_msg)
+        if gen_img:
+            return jsonify({
+                "reply": "İşte isteğin doğrultusunda oluşturduğum görsel! 🎨",
+                "emotion": "heyecanlı",
+                "learned": [],
+                "generated_image": gen_img,
+                "generated_image_mime": gen_mime
+            })
+
+    if not image_b64 and GROQ_API_KEY:
+        reply, emotion, learned = ask_groq(messages, session_id)
+        if reply is not None:
+            return jsonify({"reply": reply, "emotion": emotion, "learned": learned})
+
     reply, emotion, learned = ask_gemini(messages, session_id, image_b64, image_mime)
     return jsonify({"reply": reply, "emotion": emotion, "learned": learned})
 
@@ -316,10 +429,12 @@ def memories_delete(session_id):
 
 @app.route("/status")
 def status():
-    return jsonify({
-        "api_connected": bool(API_KEY),
-        "mode": "live" if API_KEY else "demo"
-    })
+    if GROQ_API_KEY:
+        return jsonify({"api_connected": True, "mode": "groq"})
+    elif API_KEY:
+        return jsonify({"api_connected": True, "mode": "live"})
+    else:
+        return jsonify({"api_connected": False, "mode": "demo"})
 
 
 if __name__ == "__main__":
