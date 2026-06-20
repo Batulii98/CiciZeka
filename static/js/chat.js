@@ -3,9 +3,72 @@ const userInput = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 const welcomeScreen = document.getElementById("welcomeScreen");
 
-// Conversation history for multi-turn context
 let conversationHistory = [];
 let isWaiting = false;
+
+// ── Voice state ──
+let isRecording = false;
+let voiceEnabled = false;
+let recognition = null;
+
+function initSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return false;
+  recognition = new SR();
+  recognition.lang = "tr-TR";
+  recognition.interimResults = false;
+  recognition.continuous = false;
+  recognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    userInput.value = text;
+    autoResize(userInput);
+    stopRecording();
+    sendMessage();
+  };
+  recognition.onerror = () => stopRecording();
+  recognition.onend = () => stopRecording();
+  return true;
+}
+
+function toggleMic() {
+  if (!recognition && !initSpeech()) {
+    alert("Tarayıcınız mikrofonu desteklemiyor. Chrome veya Edge kullanın.");
+    return;
+  }
+  isRecording ? stopRecording() : startRecording();
+}
+
+function startRecording() {
+  try { recognition.start(); } catch(e) { return; }
+  isRecording = true;
+  document.getElementById("micBtn").classList.add("recording");
+  userInput.placeholder = "🎙️ Dinliyorum...";
+}
+
+function stopRecording() {
+  try { recognition && recognition.stop(); } catch(e) {}
+  isRecording = false;
+  const btn = document.getElementById("micBtn");
+  if (btn) btn.classList.remove("recording");
+  userInput.placeholder = "Bir şeyler yazın... (Enter ile gönderin, Shift+Enter ile satır ekleyin)";
+}
+
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+  const btn = document.getElementById("voiceToggle");
+  btn.classList.toggle("active", voiceEnabled);
+  btn.title = voiceEnabled ? "Sesli yanıt: Açık" : "Sesli yanıt: Kapalı";
+}
+
+function speak(text) {
+  if (!voiceEnabled || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "tr-TR";
+  u.rate = 1.0;
+  u.pitch = 1.1;
+  window.speechSynthesis.speak(u);
+}
 
 // ── Status check ──
 async function checkStatus() {
@@ -54,6 +117,7 @@ async function sendMessage() {
     if (data.reply) {
       addMessage("ai", data.reply);
       conversationHistory.push({ role: "assistant", content: data.reply });
+      speak(data.reply);
     } else {
       addMessage("ai", "Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.");
     }
