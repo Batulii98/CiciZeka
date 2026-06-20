@@ -178,6 +178,67 @@ body {
   color: white;
 }
 
+.img-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.img-btn svg { width: 18px; height: 18px; }
+.img-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 4px;
+  position: relative;
+}
+
+.image-preview img {
+  max-height: 80px;
+  max-width: 120px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.remove-img-btn {
+  position: absolute;
+  top: 4px;
+  left: 108px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: none;
+  color: white;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.bubble img {
+  max-width: 260px;
+  max-height: 200px;
+  border-radius: 10px;
+  display: block;
+  margin-bottom: 6px;
+  object-fit: cover;
+}
+
 .mic-btn {
   width: 38px;
   height: 38px;

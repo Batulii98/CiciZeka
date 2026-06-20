@@ -8,16 +8,28 @@ CORS(app)
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
-SYSTEM_PROMPT = "Sen CiciZeka adında yardımsever, samimi ve akıllı bir yapay zeka asistanısın. Soruları analiz edip en doğru ve faydalı yanıtı ver. Türkçe konuşmayı tercih et ama kullanıcı hangi dilde yazarsa o dilde cevap ver."
+SYSTEM_PROMPT = "Sen CiciZeka adında yardımsever, samimi ve akıllı bir yapay zeka asistanısın. Soruları analiz edip en doğru ve faydalı yanıtı ver. Görsel gönderildiğinde onu dikkatle analiz et ve detaylı açıkla. Türkçe konuşmayı tercih et ama kullanıcı hangi dilde yazarsa o dilde cevap ver."
 
 
-def ask_gemini(messages):
+def ask_gemini(messages, image_b64=None, image_mime="image/jpeg"):
     if not API_KEY:
         return "Merhaba! Ben CiciZeka. Şu an demo modundayım, API anahtarı ayarlanmamış."
 
     try:
-        contents = [{"role": "user" if m["role"] == "user" else "model",
-                     "parts": [{"text": m["content"]}]} for m in messages]
+        contents = []
+
+        for msg in messages[:-1]:
+            contents.append({
+                "role": "user" if msg["role"] == "user" else "model",
+                "parts": [{"text": msg["content"]}]
+            })
+
+        last_parts = []
+        if image_b64:
+            last_parts.append({"inline_data": {"mime_type": image_mime, "data": image_b64}})
+        last_parts.append({"text": messages[-1]["content"] or "Bu görseli analiz et."})
+
+        contents.append({"role": "user", "parts": last_parts})
 
         payload = {
             "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
@@ -35,7 +47,7 @@ def ask_gemini(messages):
         response.raise_for_status()
         return response.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return f"Bir sorun oluştu, lütfen tekrar dene."
+        return "Bir sorun oluştu, lütfen tekrar dene."
 
 
 @app.route("/")
@@ -51,7 +63,11 @@ def chat():
     messages = data["messages"]
     if not messages:
         return jsonify({"error": "Mesaj listesi boş"}), 400
-    reply = ask_gemini(messages)
+
+    image_b64 = data.get("image")
+    image_mime = data.get("image_mime", "image/jpeg")
+
+    reply = ask_gemini(messages, image_b64, image_mime)
     return jsonify({"reply": reply})
 
 

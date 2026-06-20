@@ -6,6 +6,30 @@ const welcomeScreen = document.getElementById("welcomeScreen");
 let conversationHistory = [];
 let isWaiting = false;
 
+// ── Image state ──
+let pendingImage = null;
+let pendingImageMime = "image/jpeg";
+
+function handleImageSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingImageMime = file.type || "image/jpeg";
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    pendingImage = ev.target.result.split(",")[1];
+    document.getElementById("previewImg").src = ev.target.result;
+    document.getElementById("imagePreview").style.display = "flex";
+  };
+  reader.readAsDataURL(file);
+  e.target.value = "";
+}
+
+function removeImage() {
+  pendingImage = null;
+  document.getElementById("imagePreview").style.display = "none";
+  document.getElementById("previewImg").src = "";
+}
+
 // ── Voice state ──
 let isRecording = false;
 let voiceEnabled = false;
@@ -95,8 +119,12 @@ async function sendMessage() {
   if (!text || isWaiting) return;
 
   hideWelcome();
-  addMessage("user", text);
+  addMessage("user", text, pendingImage ? `data:${pendingImageMime};base64,${pendingImage}` : null);
   conversationHistory.push({ role: "user", content: text });
+
+  const imageToSend = pendingImage;
+  const mimeToSend = pendingImageMime;
+  removeImage();
 
   userInput.value = "";
   autoResize(userInput);
@@ -105,10 +133,13 @@ async function sendMessage() {
   const typingEl = addTyping();
 
   try {
+    const body = { messages: conversationHistory };
+    if (imageToSend) { body.image = imageToSend; body.image_mime = mimeToSend; }
+
     const res = await fetch("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: conversationHistory }),
+      body: JSON.stringify(body),
     });
 
     const data = await res.json();
@@ -131,7 +162,7 @@ async function sendMessage() {
 }
 
 // ── DOM helpers ──
-function addMessage(role, text) {
+function addMessage(role, text, imageSrc = null) {
   const isUser = role === "user";
   const msg = document.createElement("div");
   msg.className = `message ${isUser ? "user" : "ai"}`;
@@ -142,7 +173,17 @@ function addMessage(role, text) {
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent = text;
+
+  if (imageSrc) {
+    const img = document.createElement("img");
+    img.src = imageSrc;
+    img.alt = "Yüklenen görsel";
+    bubble.appendChild(img);
+  }
+
+  const textNode = document.createElement("span");
+  textNode.textContent = text;
+  bubble.appendChild(textNode);
 
   msg.appendChild(avatar);
   msg.appendChild(bubble);
