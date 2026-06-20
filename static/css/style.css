@@ -347,6 +347,14 @@ body {
 .emotion-tag.heyecanlı{ background: #f3e8ff; color: #9333ea; }
 .emotion-tag.nötr     { display: none; }
 
+.bubble a {
+  color: #a78bfa;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.bubble a:hover { color: #c4b5fd; }
+
 .bubble img {
   max-width: 260px;
   max-height: 200px;

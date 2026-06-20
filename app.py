@@ -76,6 +76,55 @@ def needs_search(text):
     return any(k in text.lower() for k in keywords)
 
 
+# ── Product Search ──
+def identify_product(image_b64, image_mime):
+    if not API_KEY or not image_b64:
+        return None
+    payload = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"inline_data": {"mime_type": image_mime, "data": image_b64}},
+                {"text": "Bu görseldeki ürünü tanımla. Sadece ürün adını ve markasını yaz, başka hiçbir şey yazma. Örnek: 'Sony WH-1000XM5 Kulaklık' veya 'Nike Air Max 90 Spor Ayakkabı' veya 'Samsung 65 inç QLED TV'."}
+            ]
+        }]
+    }
+    try:
+        r = requests.post(
+            GEMINI_URL,
+            headers={"X-goog-api-key": API_KEY, "Content-Type": "application/json"},
+            json=payload,
+            timeout=15
+        )
+        r.raise_for_status()
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception:
+        return None
+
+def search_product_links(product_name, max_results=5):
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            results = list(ddgs.text(
+                f"{product_name} satın al trendyol hepsiburada amazon",
+                max_results=max_results, region="tr-tr"
+            ))
+        links = []
+        for r in results:
+            url = r.get("href", "")
+            title = r.get("title", "")
+            if url:
+                links.append({"title": title, "url": url})
+        return links
+    except Exception:
+        return []
+
+def is_product_query(text):
+    keywords = ["link", "nereden", "satın al", "fiyat", "nerede bulunur",
+                "sipariş", "al", "bul", "nereden alabilir"]
+    return any(k in text.lower() for k in keywords)
+
+
 # ── Prompts ──
 BASE_PROMPT = """Sen CiciZeka adında akıllı ve güvenilir bir yapay zeka asistanısın.
 
@@ -90,6 +139,7 @@ Kişilik:
 Görev:
 - Soruları dikkatle analiz et ve en doğru, faydalı yanıtı ver.
 - Görsel gönderildiğinde onu detaylı ve açık biçimde analiz et.
+- Görsel bir ürüne aitse ve satın alma linkleri verilmişse, bu linkleri yanıtında mutlaka paylaş. Linkleri tam URL olarak yaz.
 - Türkçe konuşmayı tercih et; kullanıcı hangi dilde yazarsa o dilde yanıt ver.
 
 ÇIKTI FORMATI — Yanıtını SADECE aşağıdaki JSON formatında döndür:
@@ -129,12 +179,26 @@ def ask_gemini(messages, session_id, image_b64=None, image_mime="image/jpeg"):
         if needs_search(last_text):
             search_context = web_search(last_text)
 
+        # Product link search when image is provided
+        product_context = ""
+        if image_b64:
+            product_name = identify_product(image_b64, image_mime)
+            if product_name:
+                links = search_product_links(product_name)
+                if links:
+                    product_context = f"\n\n[Tespit edilen ürün: {product_name}]\n[Satın alma linkleri:\n"
+                    for lnk in links:
+                        product_context += f"- {lnk['title']}: {lnk['url']}\n"
+                    product_context += "]\nKullanıcı link istemese bile bu linkleri yanıtında paylaş."
+
         last_parts = []
         if image_b64:
             last_parts.append({"inline_data": {"mime_type": image_mime, "data": image_b64}})
         msg_text = last_text
         if search_context:
             msg_text += f"\n\n[Güncel internet araması sonuçları:\n{search_context}]"
+        if product_context:
+            msg_text += product_context
         last_parts.append({"text": msg_text})
         contents.append({"role": "user", "parts": last_parts})
 

@@ -219,7 +219,7 @@ function addMessage(role, text, imageSrc = null, emotion = null) {
   }
 
   const textNode = document.createElement("span");
-  textNode.textContent = text;
+  textNode.innerHTML = linkify(text);
   bubble.appendChild(textNode);
 
   if (emotion && emotion !== "nötr" && role === "ai") {
@@ -324,6 +324,18 @@ function handleKey(e) {
 function autoResize(el) {
   el.style.height = "auto";
   el.style.height = Math.min(el.scrollHeight, 160) + "px";
+}
+
+// ── Linkify ──
+function linkify(text) {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return escaped.replace(
+    /(https?:\/\/[^\s<>"]+)/g,
+    url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+  );
 }
 
 // ── Init ──
