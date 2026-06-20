@@ -20,6 +20,7 @@ IMAGE_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_VISION_MODEL = "llama-3.2-90b-vision-preview"
 DB_PATH = Path(__file__).parent / "memory.db"
 
 
@@ -254,7 +255,7 @@ def parse_llm_response(raw):
 
 
 # ── Groq ──
-def ask_groq(messages, session_id):
+def ask_groq(messages, session_id, image_b64=None, image_mime="image/jpeg"):
     if not GROQ_API_KEY:
         return None, "nötr", []
 
@@ -266,16 +267,27 @@ def ask_groq(messages, session_id):
         role = "user" if msg["role"] == "user" else "assistant"
         groq_messages.append({"role": role, "content": msg["content"]})
 
-    last_text = messages[-1].get("content", "")
+    last_text = messages[-1].get("content", "") or "Bu görseli detaylıca analiz et."
     augmented = last_text
-    if needs_search(last_text):
+    if needs_search(last_text) and not image_b64:
         ctx = web_search(last_text)
         if ctx:
             augmented += f"\n\n[Güncel internet araması:\n{ctx}]"
-    groq_messages.append({"role": "user", "content": augmented})
+
+    if image_b64:
+        last_content = [
+            {"type": "image_url", "image_url": {"url": f"data:{image_mime};base64,{image_b64}"}},
+            {"type": "text", "text": augmented}
+        ]
+        model = GROQ_VISION_MODEL
+    else:
+        last_content = augmented
+        model = GROQ_MODEL
+
+    groq_messages.append({"role": "user", "content": last_content})
 
     payload = {
-        "model": GROQ_MODEL,
+        "model": model,
         "messages": groq_messages,
         "temperature": 0.7,
         "max_tokens": 1024
@@ -285,7 +297,7 @@ def ask_groq(messages, session_id):
             GROQ_URL,
             headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
             json=payload,
-            timeout=30
+            timeout=45
         )
         if r.status_code != 200:
             return None, "nötr", []
@@ -408,8 +420,8 @@ def chat():
                 "generated_image_mime": gen_mime
             })
 
-    if not image_b64 and GROQ_API_KEY:
-        reply, emotion, learned = ask_groq(messages, session_id)
+    if GROQ_API_KEY:
+        reply, emotion, learned = ask_groq(messages, session_id, image_b64, image_mime)
         if reply is not None:
             return jsonify({"reply": reply, "emotion": emotion, "learned": learned})
 
