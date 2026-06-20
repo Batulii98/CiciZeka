@@ -20,10 +20,21 @@
       <button class="new-chat-btn" onclick="newChat()">
         <span>+</span> Yeni Sohbet
       </button>
+
+      <div class="chat-history-panel">
+        <div class="section-header">💬 Sohbetler</div>
+        <div class="chat-history-list" id="chatHistoryList">
+          <p class="memory-empty">Henüz sohbet yok.</p>
+        </div>
+      </div>
+
       <div class="memory-panel">
         <div class="memory-header">
           <span>🧠 Hafıza</span>
-          <button class="clear-memory-btn" onclick="clearMemory()" title="Hafızayı temizle">Temizle</button>
+          <div class="memory-header-btns">
+            <button id="memoryToggle" class="toggle-btn" onclick="toggleMemory()" title="Gizle/Göster">▲</button>
+            <button class="clear-memory-btn" onclick="clearMemory()" title="Hafızayı temizle">Temizle</button>
+          </div>
         </div>
         <div class="memory-list" id="memoryList">
           <p class="memory-empty">Henüz bir şey öğrenmedim.</p>
@@ -106,5 +117,15 @@
   </div>
 
   <script src="/static/js/chat.js"></script>
+
+  <div id="confirmModal" class="confirm-modal" style="display:none" onclick="confirmNo()">
+    <div class="confirm-box" onclick="event.stopPropagation()">
+      <p id="confirmText">Emin misin?</p>
+      <div class="confirm-btns">
+        <button class="confirm-yes" onclick="confirmYes()">Evet</button>
+        <button class="confirm-no" onclick="confirmNo()">Hayır</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

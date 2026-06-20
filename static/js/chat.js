@@ -5,6 +5,8 @@ const welcomeScreen = document.getElementById("welcomeScreen");
 
 let conversationHistory = [];
 let isWaiting = false;
+let currentChatId = crypto.randomUUID();
+let memoryVisible = true;
 
 // ── Session & Memory ──
 const SESSION_ID = localStorage.getItem("cz_session") || (() => {
@@ -31,8 +33,94 @@ function renderMemories(memories) {
 }
 
 async function clearMemory() {
-  await fetch(`/memories/${SESSION_ID}`, { method: "DELETE" });
-  renderMemories([]);
+  showConfirm("Tüm hafıza silinecek. Emin misin?", async () => {
+    await fetch(`/memories/${SESSION_ID}`, { method: "DELETE" });
+    renderMemories([]);
+  });
+}
+
+function toggleMemory() {
+  memoryVisible = !memoryVisible;
+  document.getElementById("memoryList").style.display = memoryVisible ? "" : "none";
+  document.getElementById("memoryToggle").textContent = memoryVisible ? "▲" : "▼";
+}
+
+// ── Confirm dialog ──
+let _confirmCb = null;
+
+function showConfirm(text, onYes) {
+  document.getElementById("confirmText").textContent = text;
+  document.getElementById("confirmModal").style.display = "flex";
+  _confirmCb = onYes;
+}
+
+function confirmYes() {
+  document.getElementById("confirmModal").style.display = "none";
+  if (_confirmCb) _confirmCb();
+  _confirmCb = null;
+}
+
+function confirmNo() {
+  document.getElementById("confirmModal").style.display = "none";
+  _confirmCb = null;
+}
+
+// ── Chat History ──
+const HISTORY_KEY = "cz_chat_history";
+
+function getChatHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function saveCurrentChat() {
+  if (!conversationHistory.length) return;
+  const history = getChatHistory();
+  const title = conversationHistory[0]?.content?.slice(0, 36) || "Sohbet";
+  const chat = { id: currentChatId, title, messages: [...conversationHistory], ts: Date.now() };
+  const idx = history.findIndex(c => c.id === currentChatId);
+  if (idx >= 0) history[idx] = chat; else history.unshift(chat);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 30)));
+  renderChatHistory();
+}
+
+function renderChatHistory() {
+  const list = document.getElementById("chatHistoryList");
+  if (!list) return;
+  const history = getChatHistory();
+  if (!history.length) {
+    list.innerHTML = '<p class="memory-empty">Henüz sohbet yok.</p>';
+    return;
+  }
+  list.innerHTML = history.map(c => `
+    <div class="chat-history-item${c.id === currentChatId ? " active" : ""}" onclick="loadChat('${c.id}')">
+      <span class="chat-history-title">${c.title}</span>
+      <button class="chat-delete-btn" onclick="deleteChatItem(event,'${c.id}')" title="Sil">✕</button>
+    </div>
+  `).join("");
+}
+
+function loadChat(id) {
+  if (id === currentChatId) return;
+  saveCurrentChat();
+  const chat = getChatHistory().find(c => c.id === id);
+  if (!chat) return;
+  currentChatId = id;
+  conversationHistory = [...chat.messages];
+  messagesEl.innerHTML = "";
+  if (welcomeScreen) welcomeScreen.style.display = "none";
+  for (const msg of conversationHistory) {
+    addMessage(msg.role === "user" ? "user" : "ai", msg.content);
+  }
+  renderChatHistory();
+}
+
+function deleteChatItem(e, id) {
+  e.stopPropagation();
+  const history = getChatHistory().filter(c => c.id !== id);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  if (id === currentChatId) startNewChat();
+  else renderChatHistory();
 }
 
 // ── Image state ──
@@ -181,6 +269,7 @@ async function sendMessage() {
       speak(data.reply);
       setTimeout(() => setAvatarState("idle"), Math.min(data.reply.length * 60, 8000));
       if (data.learned && data.learned.length) loadMemories();
+      saveCurrentChat();
     } else {
       addMessage("ai", "Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.");
     }
@@ -297,6 +386,15 @@ function sendSuggestion(text) {
 
 // ── New chat ──
 function newChat() {
+  if (!conversationHistory.length) { startNewChat(); return; }
+  showConfirm("Yeni sohbet açmak istediğine emin misin?", () => {
+    saveCurrentChat();
+    startNewChat();
+  });
+}
+
+function startNewChat() {
+  currentChatId = crypto.randomUUID();
   conversationHistory = [];
   messagesEl.innerHTML = `
     <div class="welcome-screen" id="welcomeScreen">
@@ -311,6 +409,7 @@ function newChat() {
       </div>
     </div>
   `;
+  renderChatHistory();
 }
 
 // ── Keyboard ──
@@ -341,3 +440,4 @@ function linkify(text) {
 // ── Init ──
 checkStatus();
 loadMemories();
+renderChatHistory();

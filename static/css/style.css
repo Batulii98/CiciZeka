@@ -90,13 +90,85 @@ body {
   background: var(--accent-hover);
 }
 
-.memory-panel {
-  margin-top: 20px;
+/* ── Chat History ── */
+.chat-history-panel {
+  margin-top: 16px;
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.section-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.chat-history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chat-history-list::-webkit-scrollbar { width: 3px; }
+.chat-history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.chat-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  gap: 6px;
+}
+
+.chat-history-item:hover { background: var(--bg-card); }
+.chat-history-item.active { background: #2a1f3d; border-left: 2px solid var(--accent); }
+
+.chat-history-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.chat-history-item.active .chat-history-title { color: var(--text-primary); }
+
+.chat-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.chat-history-item:hover .chat-delete-btn { opacity: 1; }
+.chat-delete-btn:hover { color: #ef4444; background: #2d1a1a; }
+
+/* ── Memory Panel ── */
+.memory-panel {
+  margin-top: 12px;
+  max-height: 200px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  flex-shrink: 0;
 }
 
 .memory-header {
@@ -110,6 +182,25 @@ body {
   letter-spacing: 0.05em;
   margin-bottom: 8px;
 }
+
+.memory-header-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover { color: var(--text-primary); background: var(--bg-card); }
 
 .clear-memory-btn {
   background: none;
@@ -134,6 +225,69 @@ body {
 
 .memory-list::-webkit-scrollbar { width: 3px; }
 .memory-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Confirm Modal ── */
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+
+.confirm-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 32px;
+  text-align: center;
+  min-width: 260px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.confirm-box p {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.confirm-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.confirm-yes {
+  padding: 9px 24px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.confirm-yes:hover { background: #dc2626; }
+
+.confirm-no {
+  padding: 9px 24px;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.confirm-no:hover { background: var(--bg-secondary); }
 
 .memory-item {
   font-size: 12px;
