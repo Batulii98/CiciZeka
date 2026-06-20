@@ -1,0 +1,39 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="lt" x1="45" y1="60" x2="475" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+
+  <!-- C-bubble: circular speech bubble, upper-left -->
+  <circle cx="175" cy="190" r="130" fill="white"/>
+  <polygon points="288,255 348,342 238,304" fill="white"/>
+
+  <!-- Z-bubble: rectangular speech bubble, lower-right -->
+  <rect x="210" y="290" width="265" height="170" rx="28" fill="white" opacity="0.88"/>
+  <polygon points="232,290 183,244 270,290" fill="white" opacity="0.88"/>
+
+  <!-- C letter -->
+  <text x="175" y="228"
+        text-anchor="middle"
+        font-family="system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif"
+        font-weight="800"
+        font-size="140"
+        fill="url(#lt)">C</text>
+
+  <!-- Z letter -->
+  <text x="344" y="407"
+        text-anchor="middle"
+        font-family="system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif"
+        font-weight="800"
+        font-size="110"
+        fill="url(#lt)">Z</text>
+</svg>
