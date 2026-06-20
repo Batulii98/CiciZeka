@@ -43,7 +43,7 @@ def index():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json()
+    data = request.get_json(force=True, silent=True)
     if not data or "messages" not in data:
         return jsonify({"error": "Geçersiz istek"}), 400
     messages = data["messages"]
