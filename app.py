@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import sqlite3
 import time
@@ -231,6 +232,42 @@ def build_prompt(memories):
     return BASE_PROMPT + f"\n\nBu kullanıcı hakkında önceki sohbetlerden öğrendiklerin:\n{mem_text}"
 
 
+# ── LLM response parser ──
+def parse_llm_response(raw):
+    # Kod bloğunu temizle
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        parts = cleaned.split("```")
+        cleaned = parts[1] if len(parts) > 1 else cleaned
+        if cleaned.startswith("json"):
+            cleaned = cleaned[4:]
+        cleaned = cleaned.strip()
+
+    # Direkt JSON dene
+    try:
+        parsed = json.loads(cleaned)
+        return parsed.get("reply", cleaned), parsed.get("emotion", "nötr"), parsed.get("learn", [])
+    except Exception:
+        pass
+
+    # Metin içinde JSON bul
+    match = re.search(r'\{.*?"reply".*?\}', cleaned, re.DOTALL)
+    if match:
+        try:
+            parsed = json.loads(match.group())
+            return parsed.get("reply", cleaned), parsed.get("emotion", "nötr"), parsed.get("learn", [])
+        except Exception:
+            pass
+
+    # "reply:" önekini temizle
+    for prefix in ["reply:", "Reply:", '"reply":', 'REPLY:']:
+        if cleaned.lower().startswith(prefix.lower()):
+            cleaned = cleaned[len(prefix):].strip().strip('"')
+            break
+
+    return cleaned, "nötr", []
+
+
 # ── Groq ──
 def ask_groq(messages, session_id):
     if not GROQ_API_KEY:
@@ -268,20 +305,10 @@ def ask_groq(messages, session_id):
         if r.status_code != 200:
             return None, "nötr", []
         raw = r.json()["choices"][0]["message"]["content"].strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        try:
-            parsed = json.loads(raw)
-            reply = parsed.get("reply", raw)
-            emotion = parsed.get("emotion", "nötr")
-            learned = parsed.get("learn", [])
-            if learned:
-                save_memories(session_id, learned)
-            return reply, emotion, learned
-        except Exception:
-            return raw, "nötr", []
+        reply, emotion, learned = parse_llm_response(raw)
+        if learned:
+            save_memories(session_id, learned)
+        return reply, emotion, learned
     except Exception:
         return None, "nötr", []
 
@@ -356,21 +383,10 @@ def ask_gemini(messages, session_id, image_b64=None, image_mime="image/jpeg"):
             return "Bir sorun oluştu, lütfen tekrar dene.", "nötr", []
 
         raw = parts[0]["text"].strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-
-        try:
-            parsed = json.loads(raw)
-            reply = parsed.get("reply", raw)
-            emotion = parsed.get("emotion", "nötr")
-            learned = parsed.get("learn", [])
-            if learned:
-                save_memories(session_id, learned)
-            return reply, emotion, learned
-        except Exception:
-            return raw, "nötr", []
+        reply, emotion, learned = parse_llm_response(raw)
+        if learned:
+            save_memories(session_id, learned)
+        return reply, emotion, learned
     except Exception as e:
         return f"Bir sorun oluştu: {str(e)[:120]}", "nötr", []
 
