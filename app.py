@@ -1,6 +1,7 @@
 import os
 import json
 import sqlite3
+import time
 import requests
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
@@ -10,7 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
 DB_PATH = Path(__file__).parent / "memory.db"
 
 
@@ -77,6 +78,21 @@ def needs_search(text):
 
 
 # ── Product Search ──
+def gemini_post(payload, timeout=30, retries=2):
+    for attempt in range(retries + 1):
+        r = requests.post(
+            GEMINI_URL,
+            headers={"X-goog-api-key": API_KEY, "Content-Type": "application/json"},
+            json=payload,
+            timeout=timeout
+        )
+        if r.status_code == 429:
+            if attempt < retries:
+                time.sleep(5)
+                continue
+        return r
+    return r
+
 def identify_product(image_b64, image_mime):
     if not API_KEY or not image_b64:
         return None
@@ -85,18 +101,14 @@ def identify_product(image_b64, image_mime):
             "role": "user",
             "parts": [
                 {"inline_data": {"mime_type": image_mime, "data": image_b64}},
-                {"text": "Bu görseldeki ürünü tanımla. Sadece ürün adını ve markasını yaz, başka hiçbir şey yazma. Örnek: 'Sony WH-1000XM5 Kulaklık' veya 'Nike Air Max 90 Spor Ayakkabı' veya 'Samsung 65 inç QLED TV'."}
+                {"text": "Bu görseldeki ürünü tanımla. Sadece ürün adını ve markasını yaz, başka hiçbir şey yazma. Örnek: 'Sony WH-1000XM5 Kulaklık' veya 'Nike Air Max 90 Spor Ayakkabı'."}
             ]
         }]
     }
     try:
-        r = requests.post(
-            GEMINI_URL,
-            headers={"X-goog-api-key": API_KEY, "Content-Type": "application/json"},
-            json=payload,
-            timeout=15
-        )
-        r.raise_for_status()
+        r = gemini_post(payload, timeout=15, retries=1)
+        if r.status_code != 200:
+            return None
         return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception:
         return None
@@ -207,14 +219,9 @@ def ask_gemini(messages, session_id, image_b64=None, image_mime="image/jpeg"):
             "contents": contents
         }
 
-        response = requests.post(
-            GEMINI_URL,
-            headers={"X-goog-api-key": API_KEY, "Content-Type": "application/json"},
-            json=payload,
-            timeout=30
-        )
+        response = gemini_post(payload, timeout=30, retries=2)
         if response.status_code == 429:
-            return "Şu an çok yoğunum, birkaç saniye bekleyip tekrar dener misin? 🙏", "nötr", []
+            return "API istek limitine ulaşıldı. 1 dakika bekleyip tekrar dener misin?", "nötr", []
         response.raise_for_status()
 
         resp_json = response.json()
