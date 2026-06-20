@@ -59,6 +59,23 @@ def clear_memories(session_id):
         conn.commit()
 
 
+# ── Web Search ──
+def web_search(query, max_results=4):
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=max_results, region="tr-tr"))
+        return "\n".join(f"- {r['title']}: {r['body']}" for r in results) if results else ""
+    except Exception:
+        return ""
+
+def needs_search(text):
+    keywords = ["bugün", "şu an", "şimdi", "güncel", "haber", "son dakika",
+                "fiyat", "kur", "dolar", "euro", "hava durumu", "ne zaman",
+                "vizyonda", "maç", "skor", "borsa", "kripto"]
+    return any(k in text.lower() for k in keywords)
+
+
 # ── Prompts ──
 BASE_PROMPT = """Sen CiciZeka adında akıllı ve güvenilir bir yapay zeka asistanısın.
 
@@ -107,10 +124,18 @@ def ask_gemini(messages, session_id, image_b64=None, image_mime="image/jpeg"):
                 "parts": [{"text": msg["content"]}]
             })
 
+        last_text = messages[-1]["content"] or "Bu görseli analiz et."
+        search_context = ""
+        if needs_search(last_text):
+            search_context = web_search(last_text)
+
         last_parts = []
         if image_b64:
             last_parts.append({"inline_data": {"mime_type": image_mime, "data": image_b64}})
-        last_parts.append({"text": messages[-1]["content"] or "Bu görseli analiz et."})
+        msg_text = last_text
+        if search_context:
+            msg_text += f"\n\n[Güncel internet araması sonuçları:\n{search_context}]"
+        last_parts.append({"text": msg_text})
         contents.append({"role": "user", "parts": last_parts})
 
         payload = {
