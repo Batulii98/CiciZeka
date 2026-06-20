@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 DB_PATH = Path(__file__).parent / "memory.db"
 
 
@@ -255,8 +255,8 @@ def ask_gemini(messages, session_id, image_b64=None, image_mime="image/jpeg"):
             return reply, emotion, learned
         except Exception:
             return raw, "nötr", []
-    except Exception:
-        return "Bir sorun oluştu, lütfen tekrar dene.", "nötr", []
+    except Exception as e:
+        return f"Bir sorun oluştu: {str(e)[:120]}", "nötr", []
 
 
 # ── Routes ──
