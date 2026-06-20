@@ -203,6 +203,92 @@ body {
   gap: 12px;
 }
 
+.avatar-container { flex-shrink: 0; }
+
+.cz-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7c3aed, #3b82f6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 0 0 3px #2a1f3d;
+  transition: box-shadow 0.3s;
+}
+
+.cz-avatar.talking {
+  box-shadow: 0 0 0 3px #7c3aed, 0 0 18px #7c3aed80;
+  animation: avatarBob 0.5s ease-in-out infinite alternate;
+}
+
+.cz-avatar.thinking {
+  animation: avatarPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes avatarBob {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-3px); }
+}
+
+@keyframes avatarPulse {
+  0%, 100% { box-shadow: 0 0 0 3px #f59e0b60; }
+  50%       { box-shadow: 0 0 0 6px #f59e0b30; }
+}
+
+.avatar-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatar-eyes {
+  display: flex;
+  gap: 8px;
+}
+
+.eye {
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: blink 4s infinite;
+}
+
+.pupil {
+  width: 5px;
+  height: 5px;
+  background: #1e1b4b;
+  border-radius: 50%;
+}
+
+@keyframes blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+.avatar-mouth {
+  width: 14px;
+  height: 5px;
+  border-radius: 0 0 8px 8px;
+  background: white;
+  transition: all 0.3s;
+}
+
+.cz-avatar.talking .avatar-mouth {
+  animation: mouthTalk 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes mouthTalk {
+  from { height: 3px; border-radius: 0 0 6px 6px; }
+  to   { height: 8px; border-radius: 0 0 10px 10px; }
+}
+
 .chat-header-info { flex: 1; }
 
 .chat-header h2 {

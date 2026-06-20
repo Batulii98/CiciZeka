@@ -177,7 +177,9 @@ async function sendMessage() {
     if (data.reply) {
       addMessage("ai", data.reply, null, data.emotion);
       conversationHistory.push({ role: "assistant", content: data.reply });
+      setAvatarState("talking");
       speak(data.reply);
+      setTimeout(() => setAvatarState("idle"), Math.min(data.reply.length * 60, 8000));
       if (data.learned && data.learned.length) loadMemories();
     } else {
       addMessage("ai", "Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.");
@@ -267,6 +269,24 @@ function setWaiting(state) {
   isWaiting = state;
   sendBtn.disabled = state;
   userInput.disabled = state;
+  setAvatarState(state ? "thinking" : "idle");
+}
+
+// ── Avatar ──
+function setAvatarState(state) {
+  const avatar = document.getElementById("czAvatar");
+  const status = document.getElementById("avatarStatus");
+  if (!avatar) return;
+  avatar.className = "cz-avatar";
+  if (state === "thinking") {
+    avatar.classList.add("thinking");
+    if (status) status.textContent = "Düşünüyor...";
+  } else if (state === "talking") {
+    avatar.classList.add("talking");
+    if (status) status.textContent = "Yanıtlıyor...";
+  } else {
+    if (status) status.textContent = "Dinliyorum...";
+  }
 }
 
 // ── Suggestion buttons ──

@@ -40,9 +40,20 @@
     <!-- Main chat area -->
     <main class="chat-area">
       <div class="chat-header">
+        <div class="avatar-container" id="avatarContainer">
+          <div class="cz-avatar" id="czAvatar">
+            <div class="avatar-face">
+              <div class="avatar-eyes">
+                <div class="eye left-eye"><div class="pupil"></div></div>
+                <div class="eye right-eye"><div class="pupil"></div></div>
+              </div>
+              <div class="avatar-mouth" id="avatarMouth"></div>
+            </div>
+          </div>
+        </div>
         <div class="chat-header-info">
           <h2>CiciZeka ile Sohbet</h2>
-          <p class="chat-subtitle">Yapay zeka asistanınız</p>
+          <p class="chat-subtitle" id="avatarStatus">Dinliyorum...</p>
         </div>
         <button class="voice-toggle" id="voiceToggle" onclick="toggleVoice()" title="Sesli yanıt: Kapalı">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
