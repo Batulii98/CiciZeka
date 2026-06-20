@@ -11,20 +11,27 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-fla
 SYSTEM_PROMPT = """Sen CiciZeka adında akıllı ve güvenilir bir yapay zeka asistanısın.
 
 Kişilik:
-- Samimi ama profesyonelsin. Gereksiz iltifat, aşırı heyecan veya emoji kullanmıyorsun.
-- Net ve öz konuşursun. Uzun girişler yapmadan doğrudan konuya geçersin.
-- Sıcak ama sıradan biriyle konuşur gibi doğal bir ton kullanırsın.
-- Eğlenceli sorularda hafif bir mizah yapabilirsin ama abartmadan.
+- Samimi ama profesyonelsin. Doğal bir ton kullanırsın; ne aşırı resmi ne de çocukça.
+- Net ve öz konuşursun. Doğrudan konuya girersin.
+- Emoji kullanabilirsin ama ölçülü — her cümlede değil, anlam kattığında.
+- Eğlenceli sorularda hafif mizah yapabilirsin.
+- Kullanıcının ruh haline göre empati gösterir, tonunu ayarlarsın.
 
 Görev:
 - Soruları dikkatle analiz et ve en doğru, faydalı yanıtı ver.
 - Görsel gönderildiğinde onu detaylı ve açık biçimde analiz et.
-- Türkçe konuşmayı tercih et; kullanıcı hangi dilde yazarsa o dilde yanıt ver."""
+- Türkçe konuşmayı tercih et; kullanıcı hangi dilde yazarsa o dilde yanıt ver.
+
+ÇIKTI FORMATI — Her yanıtı aşağıdaki JSON formatında döndür, başka hiçbir şey ekleme:
+{"reply": "<yanıt metni>", "emotion": "<tespit edilen duygu>"}
+
+Duygu seçenekleri: mutlu, üzgün, kızgın, endişeli, yorgun, heyecanlı, nötr
+Duyguyu kullanıcının yazdığı metinden analiz et."""
 
 
 def ask_gemini(messages, image_b64=None, image_mime="image/jpeg"):
     if not API_KEY:
-        return "Merhaba! Ben CiciZeka. Şu an demo modundayım, API anahtarı ayarlanmamış."
+        return "Merhaba! Ben CiciZeka. Şu an demo modundayım, API anahtarı ayarlanmamış.", "nötr"
 
     try:
         contents = []
@@ -54,11 +61,18 @@ def ask_gemini(messages, image_b64=None, image_mime="image/jpeg"):
             timeout=30
         )
         if response.status_code == 429:
-            return "Şu an çok yoğunum, birkaç saniye bekleyip tekrar dener misin? 🙏"
+            return "Şu an çok yoğunum, birkaç saniye bekleyip tekrar dener misin? 🙏", "nötr"
         response.raise_for_status()
-        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        return "Bir sorun oluştu, lütfen tekrar dene."
+        raw = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+        import json as _json
+        try:
+            parsed = _json.loads(raw)
+            return parsed.get("reply", raw), parsed.get("emotion", "nötr")
+        except Exception:
+            return raw, "nötr"
+    except Exception:
+        return "Bir sorun oluştu, lütfen tekrar dene.", "nötr"
 
 
 @app.route("/")
@@ -78,8 +92,8 @@ def chat():
     image_b64 = data.get("image")
     image_mime = data.get("image_mime", "image/jpeg")
 
-    reply = ask_gemini(messages, image_b64, image_mime)
-    return jsonify({"reply": reply})
+    reply, emotion = ask_gemini(messages, image_b64, image_mime)
+    return jsonify({"reply": reply, "emotion": emotion})
 
 
 @app.route("/status")

@@ -230,6 +230,25 @@ body {
   line-height: 1;
 }
 
+.emotion-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-top: 6px;
+  opacity: 0.75;
+  font-weight: 500;
+}
+.emotion-tag.mutlu    { background: #dcfce7; color: #16a34a; }
+.emotion-tag.üzgün    { background: #dbeafe; color: #2563eb; }
+.emotion-tag.kızgın   { background: #fee2e2; color: #dc2626; }
+.emotion-tag.endişeli { background: #fef3c7; color: #d97706; }
+.emotion-tag.yorgun   { background: #f3f4f6; color: #6b7280; }
+.emotion-tag.heyecanlı{ background: #f3e8ff; color: #9333ea; }
+.emotion-tag.nötr     { display: none; }
+
 .bubble img {
   max-width: 260px;
   max-height: 200px;

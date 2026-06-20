@@ -146,7 +146,7 @@ async function sendMessage() {
     typingEl.remove();
 
     if (data.reply) {
-      addMessage("ai", data.reply);
+      addMessage("ai", data.reply, null, data.emotion);
       conversationHistory.push({ role: "assistant", content: data.reply });
       speak(data.reply);
     } else {
@@ -162,7 +162,12 @@ async function sendMessage() {
 }
 
 // ── DOM helpers ──
-function addMessage(role, text, imageSrc = null) {
+const EMOTION_LABELS = {
+  mutlu: "😊 Mutlu", üzgün: "😔 Üzgün", kızgın: "😠 Kızgın",
+  endişeli: "😰 Endişeli", yorgun: "😴 Yorgun", heyecanlı: "🤩 Heyecanlı", nötr: "nötr"
+};
+
+function addMessage(role, text, imageSrc = null, emotion = null) {
   const isUser = role === "user";
   const msg = document.createElement("div");
   msg.className = `message ${isUser ? "user" : "ai"}`;
@@ -184,6 +189,13 @@ function addMessage(role, text, imageSrc = null) {
   const textNode = document.createElement("span");
   textNode.textContent = text;
   bubble.appendChild(textNode);
+
+  if (emotion && emotion !== "nötr" && role === "ai") {
+    const tag = document.createElement("div");
+    tag.className = `emotion-tag ${emotion}`;
+    tag.textContent = EMOTION_LABELS[emotion] || emotion;
+    bubble.appendChild(tag);
+  }
 
   msg.appendChild(avatar);
   msg.appendChild(bubble);
