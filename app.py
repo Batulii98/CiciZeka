@@ -166,32 +166,17 @@ def needs_image_generation(text):
     return any(k in tl for k in keywords)
 
 def generate_image(prompt):
-    if not API_KEY:
-        return None, None
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]}
-    }
+    import base64, urllib.parse
+    encoded = urllib.parse.quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded}?width=768&height=768&nologo=true&seed={int(time.time())}"
     try:
-        r = requests.post(
-            IMAGE_GEN_URL,
-            headers={"X-goog-api-key": API_KEY, "Content-Type": "application/json"},
-            json=payload,
-            timeout=45
-        )
-        if r.status_code != 200:
-            return None, None
-        data = r.json()
-        candidates = data.get("candidates", [])
-        if not candidates:
-            return None, None
-        parts = candidates[0].get("content", {}).get("parts", [])
-        for part in parts:
-            if "inlineData" in part:
-                return part["inlineData"].get("data"), part["inlineData"].get("mimeType", "image/png")
-        return None, None
+        r = requests.get(url, timeout=60)
+        if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
+            mime = r.headers.get("content-type", "image/jpeg").split(";")[0]
+            return base64.b64encode(r.content).decode("utf-8"), mime
     except Exception:
-        return None, None
+        pass
+    return None, None
 
 def is_product_query(text):
     keywords = ["link", "nereden", "satın al", "nerede bulunur",
