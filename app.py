@@ -1,4 +1,5 @@
 import os
+import requests
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 
@@ -6,33 +7,33 @@ app = Flask(__name__)
 CORS(app)
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+SYSTEM_PROMPT = "Sen CiciZeka adında yardımsever, samimi ve akıllı bir yapay zeka asistanısın. Soruları analiz edip en doğru ve faydalı yanıtı ver. Türkçe konuşmayı tercih et ama kullanıcı hangi dilde yazarsa o dilde cevap ver."
 
 
 def ask_gemini(messages):
     if not API_KEY:
-        return mock_response(messages[-1]["content"])
+        return "Merhaba! Ben CiciZeka. Şu an demo modundayım, API anahtarı ayarlanmamış."
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=API_KEY)
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            system_instruction="Sen CiciZeka adında yardımsever, samimi ve akıllı bir yapay zeka asistanısın. Soruları analiz edip en doğru ve faydalı yanıtı ver. Türkçe konuşmayı tercih et ama kullanıcı hangi dilde yazarsa o dilde cevap ver."
-        )
-        history = []
-        for msg in messages[:-1]:
-            role = "user" if msg["role"] == "user" else "model"
-            history.append({"role": role, "parts": [msg["content"]]})
+        contents = [{"role": "user" if m["role"] == "user" else "model",
+                     "parts": [{"text": m["content"]}]} for m in messages]
 
-        chat = model.start_chat(history=history)
-        response = chat.send_message(messages[-1]["content"])
-        return response.text
+        payload = {
+            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "contents": contents
+        }
+
+        response = requests.post(
+            GEMINI_URL,
+            headers={"X-goog-api-key": API_KEY, "Content-Type": "application/json"},
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
         return f"Hata oluştu: {str(e)}"
-
-
-def mock_response(user_message):
-    return "Merhaba! Ben CiciZeka. Şu an demo modundayım, API anahtarı ayarlanmamış."
 
 
 @app.route("/")
@@ -45,11 +46,9 @@ def chat():
     data = request.get_json()
     if not data or "messages" not in data:
         return jsonify({"error": "Geçersiz istek"}), 400
-
     messages = data["messages"]
     if not messages:
         return jsonify({"error": "Mesaj listesi boş"}), 400
-
     reply = ask_gemini(messages)
     return jsonify({"reply": reply})
 
