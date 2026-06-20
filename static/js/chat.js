@@ -263,13 +263,15 @@ async function sendMessage() {
     typingEl.remove();
 
     if (data.reply) {
-      addMessage("ai", data.reply, null, data.emotion);
       conversationHistory.push({ role: "assistant", content: data.reply });
+      const msgEl = addMessage("ai", "", null, data.emotion);
+      const span = msgEl.querySelector(".msg-text");
       setAvatarState("talking");
       speak(data.reply);
-      setTimeout(() => setAvatarState("idle"), Math.min(data.reply.length * 60, 8000));
-      if (data.learned && data.learned.length) loadMemories();
+      await typeWriter(span, data.reply);
+      setAvatarState("idle");
       saveCurrentChat();
+      if (data.learned && data.learned.length) loadMemories();
     } else {
       addMessage("ai", "Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.");
     }
@@ -308,6 +310,7 @@ function addMessage(role, text, imageSrc = null, emotion = null) {
   }
 
   const textNode = document.createElement("span");
+  textNode.className = "msg-text";
   textNode.innerHTML = linkify(text);
   bubble.appendChild(textNode);
 
@@ -423,6 +426,21 @@ function handleKey(e) {
 function autoResize(el) {
   el.style.height = "auto";
   el.style.height = Math.min(el.scrollHeight, 160) + "px";
+}
+
+// ── Typewriter ──
+async function typeWriter(span, text) {
+  span.textContent = "";
+  const speed = Math.max(8, Math.min(30, 2500 / text.length));
+  for (let i = 1; i <= text.length; i++) {
+    if (i === text.length) {
+      span.innerHTML = linkify(text);
+    } else {
+      span.textContent = text.slice(0, i);
+    }
+    scrollToBottom();
+    await new Promise(r => setTimeout(r, speed));
+  }
 }
 
 // ── Linkify ──
