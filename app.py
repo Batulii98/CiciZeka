@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
 SYSTEM_PROMPT = "Sen CiciZeka adında yardımsever, samimi ve akıllı bir yapay zeka asistanısın. Soruları analiz edip en doğru ve faydalı yanıtı ver. Türkçe konuşmayı tercih et ama kullanıcı hangi dilde yazarsa o dilde cevap ver."
 
 
@@ -30,10 +30,12 @@ def ask_gemini(messages):
             json=payload,
             timeout=30
         )
+        if response.status_code == 429:
+            return "Şu an çok yoğunum, birkaç saniye bekleyip tekrar dener misin? 🙏"
         response.raise_for_status()
         return response.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return f"Hata oluştu: {str(e)}"
+        return f"Bir sorun oluştu, lütfen tekrar dene."
 
 
 @app.route("/")
